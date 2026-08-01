@@ -2,17 +2,29 @@
 
 import os
 from openai import OpenAI
-from src.core.llm.base import BaseLLMClient
-from src.utils.logger import get_logger
+from dotenv import load_dotenv
 
-logger = get_logger(__name__)
+load_dotenv()
 
-class OpenAIClient(BaseLLMClient):
-    def __init__(self, model="gpt-4o-mini", temperature=0.2, max_tokens=500):
-        self.api_key = os.getenv("OPENAI_API_KEY")
+class OpenAIClient:
+    def __init__(
+        self,
+        model: str = "gpt-4o-mini",
+        temperature: float = 0.2,
+        max_tokens: int = 500,
+        base_url: str = None,
+        api_key: str = None
+    ):
+        # اگر base_url داده نشده، از متغیر محیطی یا پیش‌فرض OpenAI استفاده کن
+        self.base_url = base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY not set in environment.")
-        self.client = OpenAI(api_key=self.api_key)
+            raise ValueError("OPENAI_API_KEY is not set in environment variables.")
+
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url
+        )
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -27,13 +39,4 @@ class OpenAIClient(BaseLLMClient):
             )
             return response.choices[0].message.content
         except Exception as e:
-            logger.error(f"OpenAI error: {e}")
-            raise
-
-    def is_available(self) -> bool:
-        try:
-            # quick test: list models or just ping
-            self.client.models.list()
-            return True
-        except:
-            return False
+            raise RuntimeError(f"OpenAI API error: {e}")

@@ -1,39 +1,95 @@
 # src/core/sql_extractor/extractor.py
 
-from src.core.sql_extractor.prompt_builder import PromptBuilder
-from src.core.sql_extractor.validator import SQLValidator
+import re
+from src.core.database.models import FULL_SCHEMA
 from src.core.llm.client import LLMClient
-from src.utils.logger import get_logger
-
-logger = get_logger(__name__)
+from src.core.sql_extractor.validator import SQLValidator, SQLValidationError
 
 class SQLExtractor:
     def __init__(self, llm_client: LLMClient):
         self.llm = llm_client
+        self.schema = FULL_SCHEMA
         self.validator = SQLValidator()
+        self.few_shot_examples = [
+            {
+                "question": "۱۰ مشتری برتر سال ۱۴۰۳ چه کسانی بودند؟",
+                "sql": """
+                    SELECT TOP 10 buyer, SUM(oi.quantity * oi.unitPrice) AS total_spent
+                    FROM Sale.Orders o
+                    JOIN Sale.OrderItems oi ON o.Id = oi.orderId
+                    WHERE o.jalaliYearNo = '1403'
+                    GROUP BY buyer
+                    ORDER BY total_spent DESC
+                """
+            },
+            {
+                "question": "فروش هر محصول در سه ماه گذشته چقدر بوده است؟",
+                "sql": """
+                    SELECT oi.productGroup, SUM(oi.quantity * oi.unitPrice) AS revenue
+                    FROM Sale.OrderItems oi
+                    JOIN Sale.Orders o ON oi.orderId = o.Id
+                    WHERE o.entityDate >= DATEADD(month, -3, GETDATE())
+                    GROUP BY oi.productGroup
+                    ORDER BY revenue DESC
+                """
+            },
+            {
+                "question": "مجموع فروش هر گروه محصول در سال 1399 چقدر بوده است؟",
+                "sql": """
+                    SELECT oi.productGroup, SUM(oi.quantity * oi.unitPrice) AS total_sales
+                    FROM Sale.OrderItems oi
+                    JOIN Sale.Orders o ON oi.orderId = o.Id
+                    WHERE o.jalaliYearNo = '1399'
+                    GROUP BY oi.productGroup
+                    ORDER BY total_sales DESC
+                """
+            }
+        ]
 
-    def extract(self, question: str, history: list = None) -> str:
-        """Convert a natural language question to a SQL query."""
-        prompt = PromptBuilder.build_sql_prompt(question, history)
-        logger.debug(f"Prompt sent to LLM:\n{prompt}")
+    def _build_prompt(self, question: str) -> str:
+        prompt = f"""You are an expert in T-SQL for Microsoft SQL Server.
+        Convert the user's question into a valid SQL query.
 
-        # Generate SQL (may include extra text, we'll clean)
-        raw_sql = self.llm.generate(prompt)
+        Database Schema:
+        {self.schema}
 
-        # Clean: remove markdown code blocks if any
+        Examples:
+        """
+        for ex in self.few_shot_examples:
+            prompt += f"\nQuestion: {ex['question']}\nSQL: {ex['sql']}\n"
+
+        prompt += f"\nQuestion: {question}\nSQL:"
+        return prompt
+
+    def _clean_sql(self, raw_sql: str) -> str:
         sql = raw_sql.strip()
+        # Remove markdown code blocks
         if sql.startswith("```sql"):
             sql = sql[6:]
+        elif sql.startswith("```"):
+            sql = sql[3:]
         if sql.endswith("```"):
             sql = sql[:-3]
-        sql = sql.strip()
+
+        # Remove any text before the first SELECT or WITH
+        match = re.search(r'(WITH|SELECT)\s+', sql, re.IGNORECASE)
+        if match:
+            sql = sql[match.start():]
+
+        sql = sql.rstrip(';').strip()
+        return sql
+
+    def extract(self, question: str) -> str:
+        prompt = self._build_prompt(question)
+        raw_sql = self.llm.generate(prompt)
+
+        sql = self._clean_sql(raw_sql)
 
         # Validate
         try:
             self.validator.validate(sql)
-            return sql
-        except Exception as e:
-            logger.warning(f"Validation error: {e}. Attempting to retry or return raw.")
-            # In phase 1, we simply return the raw SQL; in phase 4 we'll implement retry loop.
-            # For now, we raise to let the agent handle.
-            raise
+        except SQLValidationError as e:
+            # Re-raise with the generated SQL attached
+            raise SQLValidationError(f"{e.message}", sql=sql)
+
+        return sql
