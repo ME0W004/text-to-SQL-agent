@@ -1,19 +1,9 @@
 # run.py
 
-from src.core.database.connection import DatabaseConnection
-from src.core.llm.client import LLMClient
-from src.core.sql_extractor.extractor import SQLExtractor
-from src.core.sql_extractor.validator import SQLValidationError
-from src.utils.config_loader import load_config
+from src.agents.text_to_sql_agent import TextToSQLAgent
 
 def main():
-    config = load_config()
-    db = DatabaseConnection(**config)
-    db.connect()
-
-    llm = LLMClient()
-    extractor = SQLExtractor(llm)
-
+    agent = TextToSQLAgent()
     print("Text-to-SQL Agent is ready. Type 'exit' to quit.\n")
 
     while True:
@@ -23,41 +13,25 @@ def main():
         if not question.strip():
             continue
 
-        try:
-            # Step 1: Generate and validate SQL
-            sql = extractor.extract(question)
-            print(f"\nGenerated SQL:\n{sql}\n")
+        result = agent.ask(question)
 
-            # Step 2: Execute SQL
-            rows = db.execute_query(sql)
-            if not rows:
-                print("No data found for this query.")
-                continue
+        if not result.get("success", False):
+            print(f"\nError: {result.get('error', 'Unknown error')}")
+            if result.get("sql"):
+                print(f"Generated SQL (rejected):\n{result['sql']}")
+            print("Please rephrase your question or try a different query.\n")
+            continue
 
-            print(f"Results ({len(rows)} rows):")
-            for row in rows[:5]:
-                print(row)
-            if len(rows) > 5:
-                print(f"... and {len(rows)-5} more rows.")
+        print(f"\nGenerated SQL:\n{result['sql']}\n")
+        print(f"Results ({result['row_count']} rows):")
+        for row in result['rows'][:5]:
+            print(row)
+        if result['row_count'] > 5:
+            print(f"... and {result['row_count']-5} more rows.")
 
-            # Step 3: Generate natural language answer
-            summary = f"The query returned {len(rows)} rows. Sample: {rows[:3]}"
-            prompt_answer = f"""User asked: {question}
-Results: {summary}
-Give a concise answer in Persian (فارسی). Be clear and informative.
-Answer:"""
-            answer = llm.generate(prompt_answer)
-            print(f"\nAnswer: {answer}\n")
+        print(f"\nAnswer: {result['answer']}\n")
 
-        except SQLValidationError as e:
-            print(f"\nValidation Error: {e.message}")
-            if e.sql:
-                print(f"Generated SQL (rejected):\n{e.sql}")
-            print("Please rephrase your question or try a different query.")
-        except Exception as e:
-            print(f"\nError: {e}")
-
-    db.close()
+    agent.close()
 
 if __name__ == "__main__":
     main()
