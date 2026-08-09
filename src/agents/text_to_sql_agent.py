@@ -9,6 +9,12 @@ from src.utils.config_loader import load_config
 from src.utils.logger import get_logger
 from src.utils.exceptions import QueryExecutionError
 
+# Import column mapping for translation
+try:
+    from src.core.column_mapper import COLUMN_MAP
+except ImportError:
+    COLUMN_MAP = {}  # Fallback to empty dict if file not found
+
 logger = get_logger(__name__)
 
 class TextToSQLAgent:
@@ -20,16 +26,44 @@ class TextToSQLAgent:
         self.extractor = SQLExtractor(self.llm)
         self.prompts = SystemPrompts()
 
+    def _filter_and_translate_rows(self, rows: list) -> list:
+        """
+        Remove 'Id' columns and translate column names to Persian.
+        """
+        if not rows:
+            return rows
+
+        filtered_rows = []
+        for row in rows:
+            new_row = {}
+            for key, value in row.items():
+                # Skip columns that end with "Id" or are exactly "Id"
+                if key.endswith("Id") or key == "Id":
+                    continue
+                # Try to get Persian translation, fallback to original if missing
+                new_key = COLUMN_MAP.get(key)
+                if new_key is None:
+                    logger.warning(f"Missing translation for column: {key}, using original.")
+                    new_key = key
+                new_row[new_key] = value
+            filtered_rows.append(new_row)
+        return filtered_rows
+
     def ask(self, question: str, session_id: str = None) -> dict:
-        
+        """
+        Process a natural language question and return the answer.
+        """
         try:
-            # Step 1: Generate SQL
+            # Step 1: Generate SQL from the question
             sql = self.extractor.extract(question)
 
-            # Step 2: Execute query
+            # Step 2: Execute the SQL query on the database
             rows = self.db.execute_query(sql)
 
-            # Step 3: Generate natural language response
+            # Step 3: Filter out 'Id' columns and translate column names to Persian
+            rows = self._filter_and_translate_rows(rows)
+
+            # Step 4: Generate a natural language response from the results
             if not rows:
                 answer = "No data found for your query."
             else:
@@ -73,4 +107,5 @@ class TextToSQLAgent:
             }
 
     def close(self):
+        """Close the database connection."""
         self.db.close()

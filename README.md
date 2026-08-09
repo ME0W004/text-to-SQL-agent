@@ -11,6 +11,8 @@
 - پشتیبانی از چندین مدل زبانی (OpenAI، Groq، Gemini)
 - اعتبارسنجی خودکار کوئری‌ها (فقط SELECT)
 - خروجی پاسخ به صورت Markdown با جداول و نکات کلیدی
+- حذف خودکار ستون‌های Id از خروجی جدول
+- ترجمه نام ستون‌ها به فارسی
 - API RESTful با FastAPI
 - رابط کاربری وب با Streamlit
 - تاریخچه مکالمه در جلسات کاربری
@@ -86,9 +88,21 @@ GROQ_API_KEY=...
 GOOGLE_API_KEY=...
 ```
 
-### ۶. اجرای پروژه
+### ۶. (اختیاری) تولید نگاشت کامل نام ستون‌ها به فارسی
 
-#### ۶-۱. اجرای سرور API (FastAPI)
+برای اینکه تمام ستون‌های خروجی به فارسی ترجمه شوند، یک اسکریپت وجود دارد که با استفاده از LLM، نگاشت کامل را تولید می‌کند:
+
+```bash
+uv run python scripts/generate_column_map.py
+```
+
+این اسکریپت تمام ستون‌های جداول `Orders`، `OrderItems` و `Shipments` را از دیتابیس خوانده، با کمک مدل زبانی به فارسی ترجمه کرده و فایل `src/core/column_mapper.py` را تولید می‌کند.
+
+> **نکته:** اگر این مرحله را انجام ندهید، ستون‌های ترجمه‌نشده به همان زبان انگلیسی در خروجی نمایش داده می‌شوند.
+
+### ۷. اجرای پروژه
+
+#### ۷-۱. اجرای سرور API (FastAPI)
 
 ```bash
 uv run python run_api.py
@@ -96,7 +110,7 @@ uv run python run_api.py
 
 سرور API روی آدرس `http://localhost:8000` در دسترس خواهد بود.
 
-#### ۶-۲. اجرای رابط کاربری (Streamlit)
+#### ۷-۲. اجرای رابط کاربری (Streamlit)
 
 در یک ترمینال جدید:
 
@@ -114,18 +128,25 @@ uv run streamlit run src/web/app.py
 
 ```
 text-to-sql-agent/
+├── scripts/
+│   └── generate_column_map.py   # اسکریپت تولید نگاشت فارسی ستون‌ها
 ├── src/
-│   ├── agents/              # منطق اصلی ایجنت
-│   ├── api/                 # API با FastAPI
+│   ├── agents/                  # منطق اصلی ایجنت
+│   ├── api/                     # API با FastAPI
 │   │   ├── main.py
 │   │   ├── models.py
 │   │   └── routes.py
-│   ├── core/                # هسته اصلی (دیتابیس، SQL Extractor، LLM)
-│   └── web/                 # رابط کاربری Streamlit
+│   ├── core/                    # هسته اصلی
+│   │   ├── database/            # اتصال و مدل دیتابیس
+│   │   ├── llm/                 # کلاینت‌های مدل زبانی
+│   │   ├── sql_extractor/       # تولید و اعتبارسنجی SQL
+│   │   ├── column_mapper.py     # نگاشت نام ستون‌ها (تولید خودکار)
+│   │   └── prompts.py           # پرامپت‌های سیستم
+│   └── web/                     # رابط کاربری Streamlit
 │       └── app.py
-├── run.py                   # اجرای خط فرمان (CLI)
-├── run_api.py               # اجرای سرور API
-├── run_ui.py                # اجرای رابط کاربری (جایگزین)
+├── run.py                       # اجرای خط فرمان (CLI)
+├── run_api.py                   # اجرای سرور API
+├── run_ui.py                    # اجرای رابط کاربری (جایگزین)
 ├── .env.example
 ├── pyproject.toml
 └── uv.lock
@@ -140,6 +161,13 @@ text-to-sql-agent/
 3. مرورگر را در آدرس `http://localhost:8501` باز کنید.
 4. سوال خود را به زبان طبیعی مطرح کنید و پاسخ را دریافت کنید.
 
+### خروجی نمونه
+
+پاسخ دریافتی شامل موارد زیر است:
+- خلاصه و نکات کلیدی به صورت Markdown
+- جدول داده‌ها با ستون‌های ترجمه‌شده به فارسی (بدون ستون‌های Id)
+- کوئری SQL تولیدشده (قابل مشاهده در بخش `View SQL Query`)
+
 ---
 
 ## عیب‌یابی
@@ -150,6 +178,7 @@ text-to-sql-agent/
 | `Login failed for user` | اطلاعات `.env` را بررسی کنید. |
 | `ModuleNotFoundError` | `uv sync` را اجرا کنید. |
 | `Import "fastapi" could not be resolved` | محیط مجازی را در VS Code انتخاب کنید. |
+| `Missing translation for column` | اسکریپت `generate_column_map.py` را اجرا کنید تا نگاشت کامل تولید شود. |
 
 ---
 
@@ -162,3 +191,8 @@ text-to-sql-agent/
 5. یک Pull Request باز کنید.
 
 ---
+
+## مجوز
+
+این پروژه برای استفاده داخلی توسعه داده شده است.
+```
