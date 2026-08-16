@@ -10,17 +10,16 @@ from src.utils.config_loader import load_config
 from src.utils.logger import get_logger
 from src.utils.exceptions import QueryExecutionError
 
-# Import column mapping for translation
+logger = get_logger(__name__)
+
 try:
     from src.core.column_mapper import COLUMN_MAP
 except ImportError:
-    COLUMN_MAP = {}  # Fallback to empty dict if file not found
-
-logger = get_logger(__name__)
-
+    COLUMN_MAP = {}
 
 class TextToSQLAgent:
     def __init__(self):
+        """Initialize agent with database connection and LLM client."""
         config = load_config()
         self.db = DatabaseConnection(**config)
         self.db.connect()

@@ -1,5 +1,8 @@
 # src/core/database/models.py
 
+# ====================================================================
+# TABLE: Sale.Orders (Full model for code usage)
+# ====================================================================
 ORDERS_MODEL = {
     "table_name": "Sale.Orders",
     "columns": [
@@ -12,6 +15,9 @@ ORDERS_MODEL = {
     "foreign_keys": []
 }
 
+# ====================================================================
+# TABLE: Sale.OrderItems (Full model for code usage)
+# ====================================================================
 ORDER_ITEMS_MODEL = {
     "table_name": "Sale.OrderItems",
     "columns": [
@@ -26,7 +32,9 @@ ORDER_ITEMS_MODEL = {
     ]
 }
 
-
+# ====================================================================
+# TABLE: Sale.Shipments (Full model for code usage)
+# ====================================================================
 SHIPMENTS_MODEL = {
     "table_name": "Sale.Shipments",
     "columns": [
@@ -41,7 +49,9 @@ SHIPMENTS_MODEL = {
     ]
 }
 
-
+# ====================================================================
+# Compact schema version (for prompt - without descriptions)
+# ====================================================================
 def build_compact_schema() -> str:
     return """
 Database Schema (Microsoft SQL Server):
@@ -65,37 +75,65 @@ Relationships:
 - Sale.OrderItems (1) ---< (N) Sale.Shipments via orderItemId
 """
 
-def build_detailed_schema() -> str:
-    lines = []
-    
-    for model in [ORDERS_MODEL, ORDER_ITEMS_MODEL, SHIPMENTS_MODEL]:
-        lines.append(f"Table: {model['table_name']}")
-        lines.append(f"Columns: {', '.join(model['columns'])}")
-        lines.append(f"PK: {model['primary_key']}")
-        for fk in model.get('foreign_keys', []):
-            lines.append(f"FK: {fk['column']} -> {fk['referred_table']}.{fk['referred_column']}")
-        lines.append("")
-    
-    lines.append("Relationships:")
-    lines.append("  - Sale.Orders.Id = Sale.OrderItems.orderId (One-to-Many)")
-    lines.append("  - Sale.OrderItems.Id = Sale.Shipments.orderItemId (One-to-Many)")
-    
-    return "\n".join(lines)
+# ====================================================================
+# Full schema with semantic descriptions (for prompt)
+# ====================================================================
+FULL_SCHEMA = """
+**Table: Sale.Orders**
+Columns:
+  - Id: Unique order identifier (Primary Key)
+  - supplierUser: Sales representative who created the order
+  - entityDate: Order creation date (Miladi)
+  - serialNo: Sequential order number
+  - status: Order status ('اتمام سفارش' = completed, 'تایید باربری' = shipping confirmed, etc.)
+  - jalaliYearNo: Persian calendar year (e.g., '1399')
+  - operationMonth: Persian calendar month in YYYYMM format (e.g., 139901 for Farvardin 1399)
+  - buyer: Customer/company name
+  - buyerId: Customer ID (Foreign Key to Buyers table, not shown)
+  - currencyRate: Exchange rate used for the order
+  - curency: Currency type (e.g., 'RLS' for Rials)
+  - destination: Destination country
+  - destinationId: Destination ID
+  - orderTypeId: Order type ID
+  - orderType: Order type description ('فروش کارگزاری بورس' = brokerage sale)
+  - bourseContractNo: Stock exchange contract number
 
-FULL_SCHEMA = build_compact_schema()
-DETAILED_SCHEMA = build_detailed_schema() 
+**Table: Sale.OrderItems**
+Columns:
+  - Id: Unique item identifier (Primary Key)
+  - orderId: Foreign Key to Sale.Orders.Id
+  - itemNo: Line number within the order
+  - orderNo: Order number (redundant, but useful for reference)
+  - mesc: Material code
+  - unit: Unit of measurement (e.g., 'KG')
+  - description: Product description
+  - miscInfo: Additional information (often NULL)
+  - productGroup: Product category (e.g., 'HDPE', 'GPPS', 'LIQUID')
+  - partNo: Product grade/part number (e.g., '3840 UA')
+  - quantity: Ordered quantity (in KG)
+  - unitPrice: Price per unit (in RLS)
+  - packCount: Number of packages
+  - palletCount: Number of pallets
+  - discount: Discount amount (default 0.00)
+  - vatPercent: VAT percentage (0%, 9%, 10%)
 
+**Relationships:**
+- Sale.Orders (1) ---< (N) Sale.OrderItems via orderId
+- Sale.OrderItems (1) ---< (N) Sale.Shipments via orderItemId
 
+**Important:** For calculating revenue, use `quantity * unitPrice`. For Persian date filtering, use `jalaliYearNo`. For grouping by month, use `operationMonth`.
+"""
+
+# ====================================================================
+# Main variables for use in other files
+# ====================================================================
 ALL_MODELS = [ORDERS_MODEL, ORDER_ITEMS_MODEL, SHIPMENTS_MODEL]
-
 
 __all__ = [
     "ORDERS_MODEL",
     "ORDER_ITEMS_MODEL",
     "SHIPMENTS_MODEL",
     "FULL_SCHEMA",
-    "DETAILED_SCHEMA",
     "ALL_MODELS",
     "build_compact_schema",
-    "build_detailed_schema"
 ]
