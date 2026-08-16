@@ -36,3 +36,6 @@ Thumbs.db
 
 reports/
 *.txt
+
+# Cache for schema hash
+.schema_cache.json

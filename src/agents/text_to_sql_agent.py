@@ -5,6 +5,7 @@ from src.core.sql_extractor.extractor import SQLExtractor
 from src.core.llm.client import LLMClient
 from src.core.prompts import SystemPrompts
 from src.core.sql_extractor.validator import SQLValidationError
+from src.core.column_mapper_updater import ensure_column_map_is_updated
 from src.utils.config_loader import load_config
 from src.utils.logger import get_logger
 from src.utils.exceptions import QueryExecutionError
@@ -17,11 +18,16 @@ except ImportError:
 
 logger = get_logger(__name__)
 
+
 class TextToSQLAgent:
     def __init__(self):
         config = load_config()
         self.db = DatabaseConnection(**config)
         self.db.connect()
+
+        # Ensure column map is up-to-date with the current schema
+        ensure_column_map_is_updated(self.db)
+
         self.llm = LLMClient()
         self.extractor = SQLExtractor(self.llm)
         self.prompts = SystemPrompts()
@@ -29,6 +35,7 @@ class TextToSQLAgent:
     def _filter_and_translate_rows(self, rows: list) -> list:
         """
         Remove 'Id' columns and translate column names to Persian.
+        Uses the full COLUMN_MAP from column_mapper.py.
         """
         if not rows:
             return rows
