@@ -1,10 +1,12 @@
 # src/core/sql_extractor/extractor.py
 
 import re
+import logging
+from time import perf_counter
 from src.core.prompts import SystemPrompts
 from src.core.llm.client import LLMClient
 from src.core.sql_extractor.validator import SQLValidator, SQLValidationError
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, log_event, sql_fingerprint
 
 logger = get_logger(__name__)
 
@@ -43,8 +45,17 @@ class SQLExtractor:
         """
         Convert user question to SQL query with auto-correction retry loop.
         """
-        prompt = self.prompts.sql_generation_prompt(question, history)
-        sql = self.llm.generate(prompt)
+        started = perf_counter()
+        log_event("llm_call_started", component="llm", purpose="sql_generation")
+        try:
+            prompt = self.prompts.sql_generation_prompt(question, history)
+            sql = self.llm.generate(prompt)
+        except Exception as exc:
+            log_event("llm_call_failed", level=logging.ERROR, component="llm", purpose="sql_generation",
+                      error_type=type(exc).__name__, duration_ms=round((perf_counter() - started) * 1000, 3))
+            raise
+        log_event("llm_call_completed", component="llm", purpose="sql_generation",
+                  duration_ms=round((perf_counter() - started) * 1000, 3))
         sql = self._clean_sql(sql)
 
         attempt = 0
@@ -56,8 +67,9 @@ class SQLExtractor:
                 attempt += 1
                 if attempt >= max_retries:
                     raise
-                logger.warning(f"SQL validation failed (attempt {attempt}/{max_retries}): {e.message}")
-                logger.debug(f"Invalid SQL: {sql}")
+                log_event("sql_validation_failed", level=logging.WARNING, component="security",
+                          reason_code=getattr(e, "code", "SQL_VALIDATION_ERROR"), attempt=attempt,
+                          sql_fingerprint=sql_fingerprint(sql))
                 
                 # Ask the model to correct the query
                 correction_prompt = self.prompts.error_correction_prompt(
@@ -65,7 +77,17 @@ class SQLExtractor:
                     error_message=str(e.message),
                     invalid_sql=sql
                 )
-                sql = self.llm.generate(correction_prompt)
+                started = perf_counter()
+                log_event("llm_call_started", component="llm", purpose="sql_correction", attempt=attempt)
+                try:
+                    sql = self.llm.generate(correction_prompt)
+                except Exception as exc:
+                    log_event("llm_call_failed", level=logging.ERROR, component="llm", purpose="sql_correction",
+                              attempt=attempt, error_type=type(exc).__name__,
+                              duration_ms=round((perf_counter() - started) * 1000, 3))
+                    raise
+                log_event("llm_call_completed", component="llm", purpose="sql_correction", attempt=attempt,
+                          duration_ms=round((perf_counter() - started) * 1000, 3))
                 sql = self._clean_sql(sql)
         
         return sql

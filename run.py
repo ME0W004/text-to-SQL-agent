@@ -1,6 +1,7 @@
 # run.py
 
 from src.agents.text_to_sql_agent import TextToSQLAgent
+from src.utils.logger import reset_trace_context, set_trace_context
 
 def main():
     agent = TextToSQLAgent()
@@ -13,7 +14,11 @@ def main():
         if not question.strip():
             continue
 
-        result = agent.ask(question)
+        token = set_trace_context()
+        try:
+            result = agent.ask(question)
+        finally:
+            reset_trace_context(token)
 
         if not result.get("success", False):
             print(f"\nError: {result.get('error', 'Unknown error')}")

@@ -1,12 +1,15 @@
 # src/api/main.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import router
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.logger import (
+    TRACE_ID_HEADER,
+    log_event,
+    normalize_trace_id,
+    reset_trace_context,
+    set_trace_context,
+)
 
 app = FastAPI(
     title="Text-to-SQL Agent API",
@@ -21,6 +24,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def trace_requests(request: Request, call_next):
+    trace_id = normalize_trace_id(request.headers.get(TRACE_ID_HEADER))
+    token = set_trace_context(trace_id)
+    try:
+        response = await call_next(request)
+        response.headers[TRACE_ID_HEADER] = trace_id
+        return response
+    finally:
+        reset_trace_context(token)
 
 app.include_router(router, prefix="/api/v1")
 

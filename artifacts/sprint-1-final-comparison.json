@@ -1,0 +1,63 @@
+{
+  "run_a": {
+    "run_id": "f6acb30619de471f9d656bbee24646b1",
+    "dataset": "docs/evaluation/initial-dataset.json"
+  },
+  "run_b": {
+    "run_id": "9411c2cc33794a299c9412301aac7c23",
+    "dataset": "docs/evaluation/initial-dataset.json"
+  },
+  "common_cases": 25,
+  "overall": {
+    "response_success": {
+      "a": null,
+      "b": null
+    },
+    "sql_present": {
+      "a": null,
+      "b": null
+    },
+    "execution_success": {
+      "a": null,
+      "b": null
+    },
+    "mean_latency_ms": {
+      "a": null,
+      "b": null
+    }
+  },
+  "cases_improved": [],
+  "cases_regressed": [],
+  "cases_unchanged": [
+    "q001",
+    "q002",
+    "q003",
+    "q005",
+    "q006",
+    "q007",
+    "q008",
+    "q010",
+    "q012",
+    "q014",
+    "q015",
+    "q016",
+    "q017",
+    "q018",
+    "q019",
+    "q021",
+    "q023",
+    "q024",
+    "q026",
+    "q030",
+    "q034",
+    "q041",
+    "q042",
+    "q046",
+    "q048"
+  ],
+  "counts": {
+    "improved": 0,
+    "regressed": 0,
+    "unchanged": 25
+  }
+}

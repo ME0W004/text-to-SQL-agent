@@ -11,18 +11,21 @@ def get_schema_hash(db_conn) -> str:
     The hash changes if any column is added, removed, or renamed.
     """
     cursor = db_conn.cursor()
-    cursor.execute("""
-        SELECT 
-            TABLE_NAME,
-            COLUMN_NAME,
-            DATA_TYPE,
-            IS_NULLABLE
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'Sale'
-          AND TABLE_NAME IN ('Orders', 'OrderItems', 'Shipments')
-        ORDER BY TABLE_NAME, ORDINAL_POSITION
-    """)
-    rows = cursor.fetchall()
+    try:
+        cursor.execute("""
+            SELECT
+                TABLE_NAME,
+                COLUMN_NAME,
+                DATA_TYPE,
+                IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'Sale'
+              AND TABLE_NAME IN ('Orders', 'OrderItems', 'Shipments')
+            ORDER BY TABLE_NAME, ORDINAL_POSITION
+        """)
+        rows = cursor.fetchall()
+    finally:
+        cursor.close()
 
     # Create a stable string representation of the schema
     schema_str = ""

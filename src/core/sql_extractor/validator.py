@@ -1,9 +1,6 @@
 # src/core/sql_extractor/validator.py
 
-import re
-import sqlglot
-from sqlglot import parse_one
-from sqlglot.errors import ParseError
+from src.core.security.sql_security import SQLSecurityValidator
 
 class SQLValidationError(Exception):
     def __init__(self, message, sql=None):
@@ -12,32 +9,19 @@ class SQLValidationError(Exception):
         super().__init__(message)
 
 class SQLValidator:
+    _security_validator = SQLSecurityValidator()
+
     @staticmethod
     def validate(sql: str) -> bool:
         if not sql or not sql.strip():
             raise SQLValidationError("SQL query is empty.")
 
         cleaned = sql.strip()
-        sql_upper = cleaned.upper()
 
-        # Accept SELECT or WITH (CTE)
-        if not (sql_upper.startswith("SELECT") or sql_upper.startswith("WITH")):
-            raise SQLValidationError("Only SELECT queries (including WITH CTEs) are allowed.")
-
-        # Block dangerous keywords
-        dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "EXEC", "EXECUTE"]
-        for keyword in dangerous_keywords:
-            if re.search(rf'\b{keyword}\b', sql_upper):
-                raise SQLValidationError(f"Query contains forbidden keyword: {keyword}")
-
-        # Parse with sqlglot
-        try:
-            parsed = parse_one(cleaned, dialect="tsql")
-            if parsed is None:
-                raise SQLValidationError("Could not parse SQL statement.")
-        except ParseError as e:
-            raise SQLValidationError(f"SQL syntax error: {e}")
-        except Exception as e:
-            raise SQLValidationError(f"SQL validation error: {e}")
-
+        # Security Core is the authoritative AST/policy decision. Keep this
+        # bool/exception API for SQLExtractor compatibility.
+        security_decision = SQLValidator._security_validator.validate(cleaned)
+        if not security_decision.valid:
+            code = security_decision.reason_code.value if security_decision.reason_code else "SECURITY_REJECTED"
+            raise SQLValidationError(f"{code}: {security_decision.message}", sql=sql)
         return True

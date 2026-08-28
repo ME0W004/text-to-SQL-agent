@@ -2,8 +2,9 @@
 
 import os
 import requests
+import logging
 from src.core.llm.openai_client import OpenAIClient
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -21,7 +22,8 @@ class LLMClient:
                     max_tokens=500
                 )
             except Exception as e:
-                logger.warning(f"OpenAI client init failed: {e}")
+                log_event("llm_client_init_failed", level=logging.WARNING, component="llm",
+                          provider="openai", error_type=type(e).__name__)
 
     def is_internet_available(self) -> bool:
         """Check internet connectivity by pinging OpenAI API."""
@@ -37,8 +39,10 @@ class LLMClient:
             try:
                 return self.openai_client.generate(prompt)
             except Exception as e:
-                logger.error(f"OpenAI generation failed: {e}")
-                raise RuntimeError(f"OpenAI generation failed: {e}")
+                log_event("llm_provider_failed", level=logging.ERROR, component="llm",
+                          provider="openai", model=getattr(self.openai_client, "model", None),
+                          error_type=type(e).__name__)
+                raise RuntimeError("OpenAI generation failed.") from e
         else:
             raise RuntimeError("OpenAI client is not available or internet is down.")
 

@@ -28,7 +28,12 @@ def load_config():
             missing.append(env_key)
         else:
             if env_key == "DB_PORT":
-                value = int(value)
+                try:
+                    value = int(value)
+                except ValueError as exc:
+                    raise ConfigurationError("DB_PORT must be an integer between 1 and 65535.") from exc
+                if not 1 <= value <= 65535:
+                    raise ConfigurationError("DB_PORT must be an integer between 1 and 65535.")
             config[param_key] = value
 
     if missing:

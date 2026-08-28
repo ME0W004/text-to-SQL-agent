@@ -1,0 +1,643 @@
+{
+  "run_id": "9411c2cc33794a299c9412301aac7c23",
+  "timestamp": "2026-08-27T13:09:09+00:00",
+  "dataset": "docs/evaluation/initial-dataset.json",
+  "agent_version": "not-invoked",
+  "total_cases": 25,
+  "passed": 0,
+  "failed": 0,
+  "metrics": {
+    "validation": {
+      "dataset_valid": true,
+      "cases": 25
+    }
+  },
+  "cases": [
+    {
+      "case_id": "q001",
+      "question": "چند سفارش در جدول فروش ثبت شده است؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "count orders",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "Id"
+        ],
+        "behavior": "scalar count; Persian answer",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q002",
+      "question": "لیست نام خریداران را نشان بده (۱۰ مورد اول).",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "top ten buyers",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "buyer"
+        ],
+        "behavior": "TOP 10 buyer",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q003",
+      "question": "چه گروه‌های محصولی در سیستم وجود دارد؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "distinct product groups",
+        "tables": [
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "productGroup"
+        ],
+        "behavior": "distinct values",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q005",
+      "question": "انواع ارز مورد استفاده در سفارش‌ها چیست؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "distinct currencies",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "curency"
+        ],
+        "behavior": "use misspelled curency column",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q006",
+      "question": "انواع حواله در جدول Shipments کدامند؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "distinct shipment types",
+        "tables": [
+          "Sale.Shipments"
+        ],
+        "columns": [
+          "typeName"
+        ],
+        "behavior": "no hallucinated columns",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q007",
+      "question": "سفارش‌های سال ۱۳۹۹ با وضعیت اتمام سفارش را بشمار.",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "count completed orders by Persian year",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "jalaliYearNo",
+          "status"
+        ],
+        "behavior": "year and status predicates",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q008",
+      "question": "اقلامی که گروه محصول آن‌ها HDPE است و واحدشان KG می‌باشد را بیاب.",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "filter product group and unit",
+        "tables": [
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "productGroup",
+          "unit"
+        ],
+        "behavior": "both predicates",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q010",
+      "question": "سفارش‌های ارزی (غیر ریالی) کدامند؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "exclude RLS currency",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "curency"
+        ],
+        "behavior": "explicit non-RLS policy",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q012",
+      "question": "اقلامی که تخفیف بزرگ‌تر از صفر دارند چند موردند؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "count positive discounts",
+        "tables": [
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "discount"
+        ],
+        "behavior": "honest zero result",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q014",
+      "question": "اقلامی که قیمت واحد آن‌ها صفر است چند تا هستند؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "count zero unit prices",
+        "tables": [
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "unitPrice"
+        ],
+        "behavior": "distinguish zero from NULL",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q015",
+      "question": "مجموع مقدار سفارش داده‌شده برای هر گروه محصول در سال ۱۳۹۸ چقدر است؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "sum quantity by group and year",
+        "tables": [
+          "Sale.Orders",
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "jalaliYearNo",
+          "productGroup",
+          "quantity"
+        ],
+        "behavior": "join and unit caveat",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q016",
+      "question": "میانگین قیمت واحد اقلام HDPE چقدر است؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "average price for HDPE",
+        "tables": [
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "productGroup",
+          "unitPrice"
+        ],
+        "behavior": "AVG with currency caveat",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q017",
+      "question": "در سال ۱۳۹۹ مجموع ارزش فروش چقدر بوده است؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "revenue by quantity times unit price",
+        "tables": [
+          "Sale.Orders",
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "jalaliYearNo",
+          "quantity",
+          "unitPrice"
+        ],
+        "behavior": "SUM(quantity*unitPrice)",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q018",
+      "question": "تعداد اقلام هر سفارش به طور میانگین چند مورد است؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "average per-order line count",
+        "tables": [
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "orderId",
+          "Id"
+        ],
+        "behavior": "average grouped counts, not AVG(quantity)",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q019",
+      "question": "مجموع وزن خالص حملات سال ۱۳۹۹ چقدر بود؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "sum shipment net weight by order year",
+        "tables": [
+          "Sale.Orders",
+          "Sale.OrderItems",
+          "Sale.Shipments"
+        ],
+        "columns": [
+          "jalaliYearNo",
+          "netWeight",
+          "orderId",
+          "orderItemId"
+        ],
+        "behavior": "triple join",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q021",
+      "question": "به ازای هر نوع حواله چند رکورد ثبت شده است؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "count shipments by type",
+        "tables": [
+          "Sale.Shipments"
+        ],
+        "columns": [
+          "typeName"
+        ],
+        "behavior": "group and count",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q023",
+      "question": "فروش هر ماه سال ۱۳۹۹ را جدا ببین.",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "monthly revenue",
+        "tables": [
+          "Sale.Orders",
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "operationMonth",
+          "quantity",
+          "unitPrice"
+        ],
+        "behavior": "group operationMonth ascending",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q024",
+      "question": "به تفکیک نوع سفارش، تعداد سفارش‌ها چقدر است؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "count orders by type",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "orderType"
+        ],
+        "behavior": "include NULL group consciously",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q026",
+      "question": "به تفکیک وضعیت سفارش چند رکورد داریم؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "count by status",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "status"
+        ],
+        "behavior": "status distribution",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q030",
+      "question": "بزرگ‌ترین سفارش از نظر ارزش کدام است؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "top order by revenue",
+        "tables": [
+          "Sale.Orders",
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "buyer",
+          "quantity",
+          "unitPrice"
+        ],
+        "behavior": "per-order aggregation TOP 1",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q034",
+      "question": "راننده‌هایی که بیشترین حمل را داشته‌اند کدامند؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "rank shipment drivers",
+        "tables": [
+          "Sale.Shipments"
+        ],
+        "columns": [
+          "driver"
+        ],
+        "behavior": "group driver; no hallucination",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q041",
+      "question": "اولین و آخرین تاریخ سفارش در سیستم چیست؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "min and max order date",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "entityDate"
+        ],
+        "behavior": "MIN/MAX",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q042",
+      "question": "سفارش‌های ماه فروردین ۱۳۹۹ چند تا بود؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "count operation month 139901",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "operationMonth"
+        ],
+        "behavior": "numeric month compare",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q046",
+      "question": "در سال ۱۴۰۳ چه سفارشی داریم؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "query unavailable year",
+        "tables": [
+          "Sale.Orders"
+        ],
+        "columns": [
+          "jalaliYearNo"
+        ],
+        "behavior": "honest empty result",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    },
+    {
+      "case_id": "q048",
+      "question": "فروش سال ۱۳۹۸ در مقایسه با ۱۳۹۹ چطور بود؟",
+      "status": "SKIPPED",
+      "failure_category": null,
+      "metrics": {
+        "dataset_valid": true
+      },
+      "actual": {},
+      "expected": {
+        "intent": "compare yearly revenue",
+        "tables": [
+          "Sale.Orders",
+          "Sale.OrderItems"
+        ],
+        "columns": [
+          "jalaliYearNo",
+          "quantity",
+          "unitPrice"
+        ],
+        "behavior": "values, delta and growth with currency caveat",
+        "gold_sql": null,
+        "notes": null
+      },
+      "failure": "offline mode: Agent/database/provider not invoked",
+      "latency_ms": null
+    }
+  ],
+  "mode": "offline",
+  "skipped": 25
+}
