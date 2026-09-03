@@ -13,7 +13,16 @@ from enum import Enum
 from typing import Any, Optional
 from uuid import uuid4
 
+from src.core.security.sql_security import SecurityDecision
 from src.utils.logger import sql_fingerprint
+from src.agents.contracts import (
+    QuestionSpec,
+    SchemaContext,
+    QueryPlan,
+    ResultProfile,
+    PresentationPlan,
+    ValidatedAnswer,
+)
 
 
 class PipelineStage(str, Enum):
@@ -40,6 +49,9 @@ class ErrorCategory(str, Enum):
     VALIDATION = "validation"
     EXECUTION = "execution"
     RESPONSE = "response"
+    ANSWER_VALIDATION = "answer_validation"
+    MEMORY = "memory"
+    LLM = "llm"
     INTERNAL = "internal"
 
 
@@ -97,9 +109,11 @@ class SQLState:
     """SQL-related state - data only, no validators."""
     generated_sql: Optional[str] = None
     sql_fingerprint: Optional[str] = None
+    normalized_sql: Optional[str] = None
     validation_status: ValidationStatus = ValidationStatus.PENDING
     validation_message: Optional[str] = None
     validation_reason_code: Optional[str] = None
+    security_decision: Optional[SecurityDecision] = None
     correction_attempt: int = 0
     max_correction_attempts: int = 2
 
@@ -126,6 +140,10 @@ class SQLState:
             validation_reason_code=reason_code,
         )
 
+    def with_security_decision(self, decision: SecurityDecision) -> SQLState:
+        """Record a typed security decision (does not change status alone)."""
+        return replace(self, security_decision=decision)
+
     def with_correction_attempt(self) -> SQLState:
         return replace(self, correction_attempt=self.correction_attempt + 1)
 
@@ -148,10 +166,12 @@ class ExecutionState:
     status: ExecutionStatus = ExecutionStatus.PENDING
     rows: tuple[dict[str, Any], ...] = ()
     row_count: int = 0
+    columns: tuple[str, ...] = ()
     duration_ms: Optional[float] = None
     error_code: Optional[str] = None
     error_message: Optional[str] = None
     database_error_code: Optional[str] = None
+    truncated: bool = False
 
     def with_results(self, rows: list[dict[str, Any]], duration_ms: float) -> ExecutionState:
         return replace(
@@ -287,7 +307,7 @@ class ErrorState:
 
 @dataclass(frozen=True)
 class RuntimeMetadata:
-    """Observability metadata - separated from business state."""
+    """Observability metadata - separated from business metadata."""
     stage_timings: dict[str, float] = field(default_factory=dict)
     stage_start_times: dict[str, float] = field(default_factory=dict)
     llm_calls: int = 0
@@ -295,6 +315,7 @@ class RuntimeMetadata:
     model_provider: Optional[str] = None
     model_name: Optional[str] = None
     attempt_counters: dict[str, int] = field(default_factory=dict)
+    token_usage: dict[str, int] = field(default_factory=dict)
 
     def with_stage_start(self, stage: str, timestamp: float) -> RuntimeMetadata:
         new_starts = dict(self.stage_start_times)
@@ -392,11 +413,12 @@ class AgentState:
     pipeline_stage: PipelineStage = PipelineStage.INITIALIZED
 
     # Stage data (typed placeholders for future components)
-    question_analysis: Optional[Any] = None  # QuestionSpec in future
-    schema_context: Optional[Any] = None     # SchemaContext in future
-    query_plan: Optional[Any] = None         # QueryPlan in future
-    result_profile: Optional[Any] = None     # ResultProfile in future
-    presentation_plan: Optional[Any] = None  # PresentationPlan in future
+    question_analysis: Optional[QuestionSpec] = None
+    schema_context: Optional[SchemaContext] = None
+    query_plan: Optional[QueryPlan] = None
+    result_profile: Optional[ResultProfile] = None
+    presentation_plan: Optional[PresentationPlan] = None
+    validated_answer: Optional[ValidatedAnswer] = None
 
     # Core stage states
     sql: SQLState = field(default_factory=SQLState)
@@ -452,7 +474,7 @@ class AgentState:
             stage=PipelineStage.VALIDATED,
             retryable=self.sql.can_retry_correction,
         )
-        return replace(self, sql=new_sql, error=new_error)
+        return replace(self, sql=new_sql, error=new_error).transition_to(PipelineStage.FAILED)
 
     def with_security_rejected(
         self,
@@ -505,6 +527,57 @@ class AgentState:
         """Record final answer."""
         new_response = self.response.with_success(answer, metadata)
         return replace(self, response=new_response).transition_to(PipelineStage.ANSWERED)
+
+    def with_conversation(self, conversation: ConversationContext) -> AgentState:
+        """Update conversation context."""
+        return replace(self, conversation=conversation)
+
+    # --- Sprint 2 Prompt 2B state-appliers for target components ---
+    #
+    # These methods exist so the Orchestrator can write each pipeline result
+    # into AgentState in a single place. Components never call these directly.
+
+    def with_question_analysis(self, spec: QuestionSpec) -> AgentState:
+        """Record QuestionAnalyzer output and transition to QUESTION_ANALYZED."""
+        return replace(
+            self, question_analysis=spec
+        ).transition_to(PipelineStage.QUESTION_ANALYZED)
+
+    def with_schema_context(self, context: SchemaContext) -> AgentState:
+        """Record SchemaRetriever output and transition to SCHEMA_RESOLVED."""
+        return replace(
+            self, schema_context=context
+        ).transition_to(PipelineStage.SCHEMA_RESOLVED)
+
+    def with_query_plan(self, plan: QueryPlan) -> AgentState:
+        """Record QueryPlanner output and transition to PLAN_CREATED."""
+        return replace(
+            self, query_plan=plan
+        ).transition_to(PipelineStage.PLAN_CREATED)
+
+    def with_result_profile(self, profile: ResultProfile) -> AgentState:
+        """Record ResultAnalyzer output and transition to RESULT_ANALYZED."""
+        return replace(
+            self, result_profile=profile
+        ).transition_to(PipelineStage.RESULT_ANALYZED)
+
+    def with_presentation_plan(self, presentation: PresentationPlan) -> AgentState:
+        """Record PresentationPlanner output (does not transition stage)."""
+        return replace(self, presentation_plan=presentation)
+
+    def with_validated_answer(self, answer: ValidatedAnswer) -> AgentState:
+        """Record AnswerValidator output and transition to ANSWERED."""
+        new_response = ResponseState(
+            answer=answer.text,
+            success=True,
+            error=None,
+            metadata={"accepted_claims": len(answer.accepted_claims)},
+        )
+        return replace(
+            self,
+            response=new_response,
+            validated_answer=answer,
+        ).transition_to(PipelineStage.ANSWERED)
 
     def with_error_response(
         self,
@@ -566,9 +639,14 @@ class AgentState:
             "sql": {
                 "has_sql": self.sql.generated_sql is not None,
                 "sql_fingerprint": self.sql.sql_fingerprint,
+                "normalized_sql": self.sql.normalized_sql if include_sensitive else None,
                 "validation_status": self.sql.validation_status.value,
                 "validation_message": self.sql.validation_message,
                 "validation_reason_code": self.sql.validation_reason_code,
+                "security_decision": (
+                    self.sql.security_decision.to_dict()
+                    if self.sql.security_decision else None
+                ),
                 "correction_attempt": self.sql.correction_attempt,
             },
             "execution": {
@@ -578,6 +656,8 @@ class AgentState:
                 "error_code": self.execution.error_code,
                 "error_message": self.execution.error_message,
                 "database_error_code": self.execution.database_error_code,
+                "columns": self.execution.columns,
+                "truncated": self.execution.truncated,
             },
             "response": {
                 "success": self.response.success,
@@ -593,6 +673,7 @@ class AgentState:
                 "model_provider": self.metadata.model_provider,
                 "model_name": self.metadata.model_name,
                 "attempt_counters": self.metadata.attempt_counters,
+                "token_usage": self.metadata.token_usage,
             },
         }
         if include_sensitive:
