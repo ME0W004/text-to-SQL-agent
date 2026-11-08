@@ -198,6 +198,7 @@ class TestProtocolMethodSignatures:
             "current_version": [],
             "versions": [],
             "get_snapshot": ["version"],
+            "refresh": [],
         },
         "SchemaRetriever": {"retrieve": ["spec", "snapshot"]},
         "QueryPlanner": {"plan": ["spec", "context"]},

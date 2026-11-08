@@ -263,6 +263,9 @@ warnings: tuple[str, ...]
 - `SchemaError` with code:
   - `SCH.NO_RELEVANT_SCHEMA` — spec could not be mapped to any table.
   - `SCH.AMBIGUOUS` — multiple equally likely candidates.
+  - `SCH.CONTEXT_BOUNDED` (Phase 3.2) — a retrieval limit trimmed the
+    context to its budget, or the structural floor exceeded it (the
+    breach is reported, never hidden).
 
 These errors produce a `SchemaContext` with `warnings` populated, and
 are raised only if the orchestrator policy requires hard rejection.
@@ -270,7 +273,10 @@ are raised only if the orchestrator policy requires hard rejection.
 ### Side Effects
 
 - None (no DB, no LLM).
-- One log event: `schema_retrieval_completed`.
+- One log event: `schema_retrieval_completed` (Phase 3.2 payload:
+  outcome, selected counts, `context_chars`, confidence, `bounded`
+  flag, snapshot version, warning codes, duration — never the question,
+  prompts, schema text or row data).
 
 ### Dependencies
 
@@ -281,6 +287,19 @@ are raised only if the orchestrator policy requires hard rejection.
 - `LLMRouter` — retrieval is deterministic.
 - `QueryExecutor`.
 - `SQLGenerator` — schema retrieval does not know about SQL syntax.
+
+### Output bounds (Phase 3.2)
+
+The returned `SchemaContext` is hard-bounded by `RetrievalPolicy`:
+`table_top_k`, `column_top_k_per_table`, `max_join_hints`,
+`max_semantic_entries` and `max_context_chars` (canonical serialized
+size, measured by `serialized_context_size()`). Trimming follows a
+documented deterministic priority (architecture doc §20.4); join
+endpoints and warnings are never removed, and a structural-floor breach
+is reported rather than hidden. The LLM-facing representation of the
+context is rendered by `SchemaContextRenderer` (formatting only, hard
+size limit, `src/core/schema/renderer.py`) — never by re-parsing the
+snapshot.
 
 ### State Interaction
 

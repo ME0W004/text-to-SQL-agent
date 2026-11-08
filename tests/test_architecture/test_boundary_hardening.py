@@ -39,12 +39,29 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SRC_ROOT = PROJECT_ROOT / "src"
 
 # Surfaces whose import must be free of side effects (ADR-016
-# lightweight surface + the lazy database package export).
+# lightweight surface + the lazy database package export + the Sprint 3
+# LLM abstraction surfaces, Prompt 3.0C.31).
+#
+# ``src.core.sql_extractor.extractor`` is deliberately NOT a target: it
+# calls the sanctioned ``get_logger()`` at module level, which attaches
+# the application log handler by design (lazy-logging convention,
+# dependency-rules.md §4.5 — logging configures on the first
+# ``get_logger()`` call). Its import-time LLM/SDK isolation is pinned by
+# the fresh-subprocess probes in tests/test_llm/test_import_purity.py.
 SIDE_EFFECT_TARGETS = (
     "src.agents.contracts",
     "src.agents.state",
     "src.core.database.policy",
     "src.core.database",
+    "src.core.database.metadata",
+    "src.core.llm.policy",
+    "src.core.llm.errors",
+    "src.core.llm.base",
+    "src.core.llm.router",
+    "src.core.llm.client",
+    "src.core.schema.catalog",
+    "src.core.schema.retriever",
+    "src.core.schema.renderer",
 )
 
 
@@ -120,10 +137,20 @@ class TestWholeTreeSdkBoundaries:
     module placed in the wrong layer fails immediately."""
 
     def test_pymssql_only_imported_by_database_driver_adapter(self) -> None:
-        offenders = _offenders("pymssql", allowed=("src/core/database/connection.py",))
+        # Sprint 3.1B (ADR-017): the metadata introspection adapter
+        # ``src/core/database/metadata.py`` is the second (lazy) approved
+        # driver import site, for read-only schema discovery only.
+        offenders = _offenders(
+            "pymssql",
+            allowed=(
+                "src/core/database/connection.py",
+                "src/core/database/metadata.py",
+            ),
+        )
         assert offenders == [], (
             "pymssql is only allowed in the DB driver adapter "
-            f"(src/core/database/connection.py): {offenders}"
+            "(src/core/database/connection.py) and the schema metadata "
+            f"adapter (src/core/database/metadata.py): {offenders}"
         )
 
     def test_openai_sdk_only_imported_by_llm_provider_layer(self) -> None:

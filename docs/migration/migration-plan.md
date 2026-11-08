@@ -5,7 +5,7 @@
 3. Planning: add QuestionSpec/QueryPlan facade with legacy extractor fallback.
 4. Validation/repair: split syntax, security, schema, semantic and complexity diagnostics; bounded repair with replay tests.
 5. Execution/results: request-scoped DB sessions, limits, ResultProfile and PresentationPlan; retain legacy adapter for rollback.
-6. LLM/memory: route providers through LLMRouter and add layered memory with provenance/retention.
+6. LLM/memory: route providers through LLMRouter and add layered memory with provenance/retention. **LLM part done in Sprint 3 / Prompt 3.0B** (`LLMRouter`, provider-neutral errors, lazy provider registry, task-bound `LLMClient` adapter; legacy `Orchestrator → SQLExtractor → LLMClient → OpenAI SDK` chain removed). Layered memory remains open.
 7. Cutover: answer validation and UI sanitization, then deprecate legacy path after parity.
 
 Each phase preserves /api/v1/ask, is independently testable and requires baseline replay before widening traffic. Sprint 1 implementation is not started.

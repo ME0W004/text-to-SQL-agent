@@ -340,7 +340,7 @@ Codes are namespaced with the component prefix, lowercase, snake_case.
 | Prefix | Component | Example codes |
 |--------|-----------|---------------|
 | `QA.` | QuestionAnalyzer | `QA.AMBIGUOUS`, `QA.UNSUPPORTED_INTENT`, `QA.LLM_UNAVAILABLE` |
-| `SCH.` | SchemaCatalog / SchemaRetriever | `SCH.DRIFT`, `SCH.NO_RELEVANT_SCHEMA`, `SCH.UNAVAILABLE` |
+| `SCH.` | SchemaCatalog / SchemaRetriever | `SCH.DRIFT`, `SCH.NO_RELEVANT_SCHEMA`, `SCH.UNAVAILABLE`, `SCH.CONTEXT_BOUNDED` (Phase 3.2 context warning: retrieval trimmed the context to its budget; also reports structural-floor breaches) |
 | `PLN.` | QueryPlanner | `PLN.PLAN_CONFLICT`, `PLN.AMBIGUOUS`, `PLN.LLM_UNAVAILABLE` |
 | `GEN.` | SQLGenerator | `GEN.LLM_UNAVAILABLE`, `GEN.INVALID_OUTPUT` |
 | `PAR.` | SQLParser | `PAR.SYNTAX_ERROR`, `PAR.MULTIPLE_STATEMENTS` |

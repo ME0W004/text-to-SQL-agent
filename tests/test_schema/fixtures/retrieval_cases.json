@@ -1,0 +1,231 @@
+{
+  "description": "Phase 3.2 deterministic schema-retrieval evaluation dataset. Each case is a typed QuestionSpec (never raw question text) evaluated against the canonical three-table snapshot built from the checked-in fixture metadata + repository annotations. Expectations are exact: relevant tables, relevant columns, required relationships, ambiguity state and emptiness. No live database is required.",
+  "cases": [
+    {
+      "name": "orders_only",
+      "category": "single_table",
+      "spec": {"entities": [{"text": "Orders", "entity_type": "table"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": ["Sale.Orders"],
+        "columns": [],
+        "joins": [],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "orderitems_only",
+      "category": "single_table",
+      "spec": {"entities": [{"text": "OrderItems", "entity_type": "table"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": ["Sale.OrderItems"],
+        "columns": [],
+        "joins": [],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "shipments_only",
+      "category": "single_table",
+      "spec": {"entities": [{"text": "Shipments", "entity_type": "table"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": ["Sale.Shipments"],
+        "columns": [],
+        "joins": [],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "orders_and_orderitems",
+      "category": "two_tables",
+      "spec": {
+        "entities": [
+          {"text": "Orders", "entity_type": "table"},
+          {"text": "OrderItems", "entity_type": "table"}
+        ],
+        "filters": [],
+        "metrics": []
+      },
+      "expected": {
+        "tables": ["Sale.OrderItems", "Sale.Orders"],
+        "columns": [["Sale.OrderItems", "orderId"], ["Sale.Orders", "Id"]],
+        "joins": [["Sale.OrderItems", "orderId", "Sale.Orders", "Id"]],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "orderitems_and_shipments",
+      "category": "two_tables",
+      "spec": {
+        "entities": [
+          {"text": "OrderItems", "entity_type": "table"},
+          {"text": "Shipments", "entity_type": "table"}
+        ],
+        "filters": [],
+        "metrics": []
+      },
+      "expected": {
+        "tables": ["Sale.OrderItems", "Sale.Shipments"],
+        "columns": [["Sale.OrderItems", "Id"], ["Sale.Shipments", "orderItemId"]],
+        "joins": [["Sale.Shipments", "orderItemId", "Sale.OrderItems", "Id"]],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "three_table_question",
+      "category": "three_tables",
+      "spec": {
+        "entities": [
+          {"text": "Orders", "entity_type": "table"},
+          {"text": "OrderItems", "entity_type": "table"},
+          {"text": "Shipments", "entity_type": "table"}
+        ],
+        "filters": [],
+        "metrics": []
+      },
+      "expected": {
+        "tables": ["Sale.OrderItems", "Sale.Orders", "Sale.Shipments"],
+        "columns": [
+          ["Sale.OrderItems", "orderId"],
+          ["Sale.Orders", "Id"],
+          ["Sale.OrderItems", "Id"],
+          ["Sale.Shipments", "orderItemId"]
+        ],
+        "joins": [
+          ["Sale.OrderItems", "orderId", "Sale.Orders", "Id"],
+          ["Sale.Shipments", "orderItemId", "Sale.OrderItems", "Id"]
+        ],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "quantity_ambiguity",
+      "category": "ambiguity",
+      "spec": {"entities": [{"text": "quantity", "entity_type": "column"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": ["Sale.OrderItems", "Sale.Shipments"],
+        "columns": [
+          ["Sale.OrderItems", "quantity"],
+          ["Sale.OrderItems", "unit"],
+          ["Sale.OrderItems", "unitPrice"],
+          ["Sale.OrderItems", "Id"],
+          ["Sale.Shipments", "quantity"],
+          ["Sale.Shipments", "orderItemId"]
+        ],
+        "joins": [["Sale.Shipments", "orderItemId", "Sale.OrderItems", "Id"]],
+        "ambiguous": true,
+        "empty": false
+      }
+    },
+    {
+      "name": "revenue_semantics",
+      "category": "business_semantics",
+      "spec": {"entities": [], "filters": [], "metrics": [{"name": "revenue", "aggregation": "sum"}]},
+      "expected": {
+        "tables": ["Sale.OrderItems"],
+        "columns": [["Sale.OrderItems", "quantity"], ["Sale.OrderItems", "unitPrice"]],
+        "joins": [],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "jalali_date_filter",
+      "category": "filter",
+      "spec": {
+        "entities": [],
+        "filters": [{"field": "jalaliYearNo", "operator": "eq", "value": "1399"}],
+        "metrics": []
+      },
+      "expected": {
+        "tables": ["Sale.Orders"],
+        "columns": [["Sale.Orders", "jalaliYearNo"]],
+        "joins": [],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "irrelevant_column_question",
+      "category": "no_relevance",
+      "spec": {"entities": [{"text": "zzz_nothing", "entity_type": "entity"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": [],
+        "columns": [],
+        "joins": [],
+        "ambiguous": false,
+        "empty": true
+      }
+    },
+    {
+      "name": "persian_label_driver",
+      "category": "persian_label",
+      "spec": {"entities": [{"text": "راننده", "entity_type": "entity"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": ["Sale.Shipments"],
+        "columns": [["Sale.Shipments", "driver"]],
+        "joins": [],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "persian_label_quantity_ambiguity",
+      "category": "persian_label",
+      "spec": {"entities": [{"text": "تعداد", "entity_type": "entity"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": ["Sale.OrderItems", "Sale.Shipments"],
+        "columns": [
+          ["Sale.OrderItems", "quantity"],
+          ["Sale.OrderItems", "Id"],
+          ["Sale.Shipments", "quantity"],
+          ["Sale.Shipments", "orderItemId"]
+        ],
+        "joins": [["Sale.Shipments", "orderItemId", "Sale.OrderItems", "Id"]],
+        "ambiguous": true,
+        "empty": false
+      }
+    },
+    {
+      "name": "weak_semantic_match",
+      "category": "weak_semantic",
+      "spec": {"entities": [{"text": "headers", "entity_type": "entity"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": [],
+        "columns": [],
+        "joins": [],
+        "ambiguous": false,
+        "empty": true
+      }
+    },
+    {
+      "name": "dangling_reference_no_fabricated_join",
+      "category": "dangling_reference",
+      "spec": {"entities": [{"text": "buyerId", "entity_type": "column"}], "filters": [], "metrics": []},
+      "expected": {
+        "tables": ["Sale.Orders"],
+        "columns": [["Sale.Orders", "buyerId"]],
+        "joins": [],
+        "ambiguous": false,
+        "empty": false
+      }
+    },
+    {
+      "name": "no_retrieval_signals",
+      "category": "no_relevance",
+      "spec": {"entities": [], "filters": [], "metrics": []},
+      "expected": {
+        "tables": [],
+        "columns": [],
+        "joins": [],
+        "ambiguous": false,
+        "empty": true
+      }
+    }
+  ]
+}

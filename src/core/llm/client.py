@@ -1,51 +1,61 @@
 # src/core/llm/client.py
 
-import os
-import requests
-import logging
-from src.core.llm.openai_client import OpenAIClient
-from src.utils.logger import get_logger, log_event
+"""Task-bound compatibility adapter over the LLMRouter (Sprint 3A, ADR-011).
 
-logger = get_logger(__name__)
+``LLMClient`` used to be the provider-coupled legacy facade: it hardwired
+the OpenAI provider, pinged ``https://api.openai.com`` before every
+generation (a documented false-negative source for proxied endpoints)
+and had no fallback. Since Sprint 3A it is a thin adapter that delegates
+every call to the canonical :class:`~src.core.llm.router.LLMRouter` under
+a fixed logical ``task``.
+
+Why this wrapper is retained: the established call shape —
+``generate(prompt) -> str`` — is relied upon by the SQL-extraction,
+answer-generation and column-map seams (including their test fakes).
+It will be retired when SQLGenerator/AnswerGenerator land (documented
+migration debt, ``docs/architecture/dependency-rules.md`` §11).
+
+Provider selection, retry, fallback, timeouts and error normalization
+happen in the router layer — never here.
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from src.core.llm.router import LLMRouter, build_default_router
+
+__all__ = ["LLMClient"]
+
 
 class LLMClient:
-    def __init__(self):
-        self.openai_client = None
-        self._init_client()
+    """Compatibility adapter: ``generate(prompt) -> str`` over the router.
 
-    def _init_client(self):
-        """Initialize the OpenAI client if API key is available."""
-        if os.getenv("OPENAI_API_KEY"):
-            try:
-                self.openai_client = OpenAIClient(
-                    temperature=0.1,
-                    max_tokens=500
-                )
-            except Exception as e:
-                log_event("llm_client_init_failed", level=logging.WARNING, component="llm",
-                          provider="openai", error_type=type(e).__name__)
+    Parameters
+    ----------
+    router:
+        The router to delegate to. When omitted, a default router is
+        built from project configuration (``build_default_router``).
+    task:
+        Logical purpose recorded in telemetry and result metadata
+        (``"sql_generation"``, ``"response_generation"``, ...).
+    """
 
-    def is_internet_available(self) -> bool:
-        """Check internet connectivity by pinging OpenAI API."""
-        try:
-            requests.get("https://api.openai.com", timeout=3)
-            return True
-        except:
-            return False
+    def __init__(self, router: Optional[LLMRouter] = None, *, task: str = "general"):
+        self.router = router if router is not None else build_default_router()
+        self.task = task
 
     def generate(self, prompt: str) -> str:
-        """Generate response using OpenAI client."""
-        if self.is_internet_available() and self.openai_client:
-            try:
-                return self.openai_client.generate(prompt)
-            except Exception as e:
-                log_event("llm_provider_failed", level=logging.ERROR, component="llm",
-                          provider="openai", model=getattr(self.openai_client, "model", None),
-                          error_type=type(e).__name__)
-                raise RuntimeError("OpenAI generation failed.") from e
-        else:
-            raise RuntimeError("OpenAI client is not available or internet is down.")
+        """Route the prompt through the router; return the text output."""
+        result = self.router.generate(prompt, task=self.task)
+        return result.text
 
     def is_available(self) -> bool:
-        """Check if the OpenAI client is available and internet is reachable."""
-        return self.openai_client is not None and self.is_internet_available()
+        """Whether the router has a provider that can serve requests.
+
+        Configuration-based (cheap); the legacy pre-call connectivity
+        ping was removed — it added latency to every call and produced
+        false negatives for proxied OpenAI-compatible endpoints
+        (``docs/current-system/llm-audit.md`` §3).
+        """
+        return self.router.has_available_provider()

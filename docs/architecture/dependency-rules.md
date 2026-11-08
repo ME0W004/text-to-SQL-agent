@@ -62,14 +62,43 @@ forbidden unless accompanied by a new ADR.
 
 ### 3.2 SchemaCatalog
 
-- `pymssql` driver (read-only admin connection, used only at refresh time)
-- File system cache (`os.path`, JSON)
+- `pymssql` driver (read-only admin connection, used only at refresh time) — **refined in Sprint 3.1B (ADR-017)**: the catalog itself imports **no** driver; structural discovery crosses through the metadata adapter `src/core/database/metadata.py` (the second approved, lazy driver import site), which returns driver-free typed metadata. The admin connection remains separate from the per-request `QueryExecutor` connection.
+- File system cache (`os.path`, JSON): annotations `data/schema/annotations.json` + content-addressed snapshot cache `data/schema/schema_cache.json` (legacy `.schema_cache.json` untouched)
 - `log_event`, `TraceContext`
+- `src.agents.contracts` (canonical schema value objects)
+
+Implemented as `src/core/schema/catalog.py` (Sprint 3.1B); enforced by
+`tests/test_architecture/test_schema_boundary.py` (no driver/LLM/SDK/state/API/memory imports in `src/core/schema/**`), the whole-tree pymssql-site scan in `test_boundary_hardening.py`, and fresh-subprocess footprint probes.
 
 ### 3.3 SchemaRetriever
 
 - `SchemaSnapshot` (typed value object)
 - `QuestionSpec` (typed value object, passed in by parameter)
+
+Implemented as `src/core/schema/retriever.py` (Sprint 3.1C): pure,
+deterministic, LLM/DB/state/memory-free selection; consumed only by the
+Orchestrator through the existing `OrchestratorDeps` seam (dormant until
+a QuestionAnalyzer supplies a QuestionSpec). Enforced by
+`tests/test_architecture/test_schema_boundary.py`.
+
+**Phase 3.2**: the retriever additionally emits the contract-named
+`schema_retrieval_completed` event via the shared `log_event` surface
+(§3.18/§7 — observability is not a counted dependency) and implements
+hard context bounds, deterministic budgeting and query-type-aware
+evidence routing (schema-intelligence.md §20).
+
+### 3.3a SchemaContextRenderer (Phase 3.2)
+
+- `SchemaContext` (typed value object, passed in by parameter)
+
+Implemented as `src/core/schema/renderer.py`: pure deterministic
+*formatting* of an already-bounded request-level context for LLM-facing
+consumers — DB-free, LLM-free, retrieval-free, catalog-free,
+AgentState-free. It imports only `src.agents.contracts`. It is dormant
+until the separately-authorized prompt-migration stage consumes it.
+Enforced by `tests/test_architecture/test_schema_boundary.py`
+(renderer isolation + fresh-subprocess footprint) and
+`tests/test_schema/test_context_renderer.py`.
 
 ### 3.4 QueryPlanner
 
@@ -145,6 +174,16 @@ forbidden unless accompanied by a new ADR.
 - `requests` (where already used)
 - `log_event`, `TraceContext`
 - `LLMPolicy`, `LLMBudget` (typed value objects)
+
+**Sprint 3B status**: implemented as `src/core/llm/router.py`. The
+router imports the value objects from the driver-free leaf
+`src/core/llm/policy.py` (ADR-016 pattern) and never imports
+`src.agents` — keeping the internal package graph acyclic (enforced by
+`test_llm_layer_never_imports_agents_package` and the package cycle
+test). Provider SDK imports are confined to the four client modules
+(enforced by `test_boundary_hardening.py`); `base.py`, `errors.py` and
+`policy.py` are provider-neutral (enforced by
+`tests/test_architecture/test_llm_boundary.py`).
 
 ### 3.18 Cross-cutting Observability
 
@@ -428,7 +467,13 @@ Specifically:
   `SQLRepairer`.
 - `MemoryManager` already implements the `MemoryManager` contract
   (§16 in `component-contracts.md`). No change required.
-- `LLMClient` will be replaced by `LLMRouter` in a future Sprint.
+- `LLMClient` is now a **task-bound compatibility adapter** over
+  `LLMRouter` (Sprint 3B). The legacy transitive dependency
+  `SQLExtractor → LLMClient → OpenAI SDK` is removed: the extractor
+  accepts any `generate(prompt) -> str` client and imports no LLM
+  module. The adapter remains at the SQL-extraction and answer seams
+  until `SQLGenerator`/`AnswerGenerator` land — that seam is the
+  remaining LLM migration debt.
 
 The existing `TextToSQLAgent` violates several rules (it constructs
 infra directly, writes `AgentState`, holds a DB connection for startup).

@@ -71,10 +71,31 @@ class TextToSQLAgent:
         finally:
             self.db.close()
 
-        self.llm = LLMClient()
-        self.extractor = SQLExtractor(self.llm)
+        # LLM boundary (Sprint 3A): one LLMRouter owns provider selection,
+        # bounded retry, fallback and error normalization. The task-bound
+        # LLMClient adapters keep the established generate(prompt) -> str
+        # call shape at the SQL-extraction and answer seams.
+        from src.core.llm.router import build_default_router
+
+        self.router = build_default_router()
+        self.llm = LLMClient(self.router, task="response_generation")
+        self.extractor = SQLExtractor(LLMClient(self.router, task="sql_generation"))
         self.prompts = SystemPrompts()
         self.memory = MemoryManager()
+
+        # Schema Intelligence (Sprint 3.1B/3.1C, ADR-017): additive
+        # composition only. Construction performs local file reads
+        # (annotations + snapshot cache), no database I/O. The catalog and
+        # retriever are wired into OrchestratorDeps, but schema resolution
+        # stays DORMANT on the live path until a QuestionAnalyzer produces
+        # a QuestionSpec (``question_analysis`` is None today — the
+        # Orchestrator seam is a no-op for such requests).
+        from src.core.database.metadata import DatabaseMetadataReader
+        from src.core.schema.catalog import SchemaCatalog
+        from src.core.schema.retriever import SchemaRetriever
+
+        self.schema_catalog = SchemaCatalog(DatabaseMetadataReader(**config))
+        self.schema_retriever = SchemaRetriever()
 
         # Optional injection points. Existing tests may replace any of
         # these attributes before calling ``ask``. The Orchestrator picks
@@ -91,6 +112,13 @@ class TextToSQLAgent:
             prompts=self.prompts,
             memory_manager=self.memory,
             execution_policy=self.db.execution_policy,
+            # ``router``/``schema_catalog``/``schema_retriever`` are created
+            # in __init__; legacy test-construction paths (object.__new__ +
+            # attribute injection) may not have them. OrchestratorDeps
+            # fields are Optional, so absence is valid.
+            llm_router=getattr(self, "router", None),
+            schema_catalog=getattr(self, "schema_catalog", None),
+            schema_retriever=getattr(self, "schema_retriever", None),
         )
         return Orchestrator(deps)
 

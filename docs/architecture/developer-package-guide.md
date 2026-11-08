@@ -162,12 +162,15 @@ to add an exception. Exceptions require a new ADR.
 These are approved, documented debts — removing them is future work,
 not a drive-by cleanup:
 
-* **Orchestrator → `SQLExtractor` → openai chain**: the legacy
-  extractor imports the OpenAI SDK transitively, so
-  `orchestrator.py` is heavier than the target design. Deferred to the
-  LLMRouter / SQLGenerator work (ADR-011). The footprint probes
-  deliberately protect only `contracts`/`state`/`policy`, not the
-  orchestrator.
+* **~~Orchestrator → `SQLExtractor` → openai chain~~ — RESOLVED (Sprint 3 /
+  Prompt 3.0B)**: the extractor imports no LLM module and the openai SDK
+  loads only when a provider is actually constructed. The footprint
+  probes now cover the LLM surfaces, the extractor, the façade and the
+  Orchestrator (`tests/test_llm/test_import_purity.py`). The
+  Orchestrator's remaining DB-driver load via
+  `src.core.database.connection` is approved composition debt (A2), not
+  provider leakage. Practical LLM recipes:
+  [`llm-developer-guide.md`](llm-developer-guide.md).
 * **Legacy `SQLValidator` wrapper**
   (`src/core/sql_extractor/validator.py` defines its own
   `SQLValidationError`/`SQLValidator` over the Security Core) —

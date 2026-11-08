@@ -163,6 +163,56 @@ def test_api_health_and_error_contracts_remain_compatible(monkeypatch):
     assert "private-internal-detail" not in failed.text
 
 
+def test_health_availability_is_configuration_based_without_network(monkeypatch):
+    """Sprint 3B: /health availability is configuration/provider-based.
+
+    The legacy pre-call connectivity ping was removed (the approved 3.0A
+    behavioral exception). This pins the new semantics explicitly: the
+    availability check goes through the LLMRouter's configuration-based
+    probe and /health performs no network access at all.
+    """
+    from src.core.llm.client import LLMClient
+    from src.core.llm.router import LLMRouter
+
+    class ConfiguredFakeProvider:
+        name = "fake"
+        model = "fake-model"
+
+        def is_available(self):
+            return True
+
+        def generate(self, prompt, **kwargs):
+            raise AssertionError("health must never generate")
+
+    class HealthAgent:
+        db = object()
+        llm = LLMClient(
+            LLMRouter(providers=[ConfiguredFakeProvider()]),
+            task="response_generation",
+        )
+
+    def forbid_http(*args, **kwargs):
+        raise AssertionError(
+            "HTTP request attempted from /health — the pre-call connectivity "
+            "ping was removed by the approved Sprint 3A design"
+        )
+
+    # The removed ping used requests.get("https://api.openai.com"); forbid
+    # every plausible HTTP surface instead of patching sockets (the ASGI
+    # event loop legitimately uses loopback sockets internally).
+    monkeypatch.setattr("requests.get", forbid_http, raising=False)
+    monkeypatch.setattr("requests.request", forbid_http, raising=False)
+    monkeypatch.setattr("httpx.request", forbid_http, raising=False)
+    monkeypatch.setattr("httpx.Client.send", forbid_http, raising=False)
+    monkeypatch.setattr("urllib.request.urlopen", forbid_http, raising=False)
+    monkeypatch.setattr(routes, "get_agent", lambda: HealthAgent())
+    with TestClient(app) as client:
+        health = client.get("/api/v1/health")
+    assert health.status_code == 200
+    assert set(health.json()) == {"status", "database", "llm"}
+    assert health.json()["llm"] == "Available"
+
+
 @pytest.mark.parametrize("value", ["invalid", "0", "65536"])
 def test_invalid_database_port_configuration_fails_closed(monkeypatch, value):
     for key in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"):

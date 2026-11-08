@@ -316,6 +316,11 @@ class RuntimeMetadata:
     model_name: Optional[str] = None
     attempt_counters: dict[str, int] = field(default_factory=dict)
     token_usage: dict[str, int] = field(default_factory=dict)
+    # Bounded schema-context metrics recorded by the Orchestrator when
+    # schema resolution runs (Phase 3.2). Counts only — never schema
+    # text, prompts or questions. Empty until a QuestionAnalyzer
+    # activates the retrieval path (dormant seam).
+    schema_metrics: dict[str, int] = field(default_factory=dict)
 
     def with_stage_start(self, stage: str, timestamp: float) -> RuntimeMetadata:
         new_starts = dict(self.stage_start_times)
@@ -343,6 +348,14 @@ class RuntimeMetadata:
         new_counters[operation] = new_counters.get(operation, 0) + 1
         return replace(self, attempt_counters=new_counters)
 
+    def with_schema_metrics(self, metrics: dict[str, int]) -> RuntimeMetadata:
+        """Record bounded schema-context metrics (counts only, Phase 3.2).
+
+        Written by the Orchestrator when schema resolution runs; empty
+        on the live path until a QuestionAnalyzer activates retrieval.
+        """
+        return replace(self, schema_metrics=metrics)
+
 
 # Valid stage transitions for predictability
 VALID_TRANSITIONS: dict[PipelineStage, set[PipelineStage]] = {
@@ -357,6 +370,7 @@ VALID_TRANSITIONS: dict[PipelineStage, set[PipelineStage]] = {
     },
     PipelineStage.SCHEMA_RESOLVED: {
         PipelineStage.PLAN_CREATED,
+        PipelineStage.SQL_GENERATED,  # Direct path: no QueryPlanner wired yet (Sprint 3.1C)
         PipelineStage.FAILED,
     },
     PipelineStage.PLAN_CREATED: {
@@ -613,6 +627,12 @@ class AgentState:
         new_metadata = self.metadata.with_llm_call(duration_ms, provider, model)
         return replace(self, metadata=new_metadata)
 
+    def with_schema_metrics(self, metrics: dict[str, int]) -> AgentState:
+        """Record bounded schema-context metrics (counts only; the
+        Orchestrator is the sole writer, mirroring with_llm_call)."""
+        new_metadata = self.metadata.with_schema_metrics(metrics)
+        return replace(self, metadata=new_metadata)
+
     def increment_attempt(self, operation: str) -> AgentState:
         """Increment attempt counter for an operation."""
         new_metadata = self.metadata.increment_attempt(operation)
@@ -674,6 +694,7 @@ class AgentState:
                 "model_name": self.metadata.model_name,
                 "attempt_counters": self.metadata.attempt_counters,
                 "token_usage": self.metadata.token_usage,
+                "schema_metrics": self.metadata.schema_metrics,
             },
         }
         if include_sensitive:

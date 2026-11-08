@@ -4,14 +4,22 @@ import re
 import logging
 from time import perf_counter
 from src.core.prompts import SystemPrompts
-from src.core.llm.client import LLMClient
 from src.core.sql_extractor.validator import SQLValidator, SQLValidationError
 from src.utils.logger import get_logger, log_event, sql_fingerprint
 
 logger = get_logger(__name__)
 
 class SQLExtractor:
-    def __init__(self, llm_client: LLMClient):
+    """LLM-driven SQL generation with a bounded prompt-correction retry loop.
+
+    ``llm_client`` is any object exposing ``generate(prompt) -> str``.
+    Since Sprint 3A this is a task-bound adapter over the LLMRouter
+    (``src/core/llm/router.py``): this class no longer imports any LLM
+    module and performs no provider selection — provider choice, retry
+    and fallback live in the router layer.
+    """
+
+    def __init__(self, llm_client):
         self.llm = llm_client
         self.validator = SQLValidator()
         self.prompts = SystemPrompts()

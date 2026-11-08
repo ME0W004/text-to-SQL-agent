@@ -52,6 +52,7 @@ from src.agents.contracts import (
     PresentationPlan,
     QuestionSpec,
     SchemaContext,
+    SchemaError,
     QueryPlan,
     SecurityDecision,
     LLMResult,
@@ -262,7 +263,7 @@ class Orchestrator:
             self._persist_conversation(state)
             self._emit_completion(state, started)
             return state
-        except (SQLSecurityError, QueryExecutionError, ValueError) as exc:
+        except (SQLSecurityError, QueryExecutionError, SchemaError, ValueError) as exc:
             return self._handle_known_failure(state, exc, started)
         except Exception as exc:  # pragma: no cover — defensive
             return self._handle_unknown_failure(state, exc, started)
@@ -323,9 +324,28 @@ class Orchestrator:
             if state.question_analysis is not None and state.schema_context is None:
                 return state.with_schema_context(SchemaContext())
             return state
+        from src.core.schema.retriever import serialized_context_size
+
+        started = perf_counter()
         snapshot: SchemaSnapshot = catalog.get_snapshot()
         context: SchemaContext = retriever.retrieve(state.question_analysis, snapshot)
-        return state.with_schema_context(context)
+        state = state.with_schema_context(context)
+        # Bounded schema-context metrics (Phase 3.2): counts only, recorded
+        # by the Orchestrator — the sole writer of AgentState. The seam is
+        # dormant on the live path until a QuestionAnalyzer supplies a
+        # QuestionSpec, so these metrics stay empty on real requests.
+        state = state.with_stage_timing(
+            "schema_resolution", (perf_counter() - started) * 1000
+        )
+        return state.with_schema_metrics(
+            {
+                "selected_tables": len(context.tables),
+                "selected_columns": len(context.columns),
+                "join_hints": len(context.joins),
+                "semantics_entries": len(context.relevant_business_semantics),
+                "context_chars": serialized_context_size(context),
+            }
+        )
 
     # ------------------------------------------------------------------
     # Stage: Query planning (stub for Sprint 2 Prompt 2B)
@@ -577,6 +597,16 @@ class Orchestrator:
                 error_code=db_code or "DATABASE_QUERY_ERROR",
                 error_message=str(exc),
                 database_error_code=db_code,
+            )
+        elif isinstance(exc, SchemaError):
+            # Typed schema failure (e.g. SCH.UNAVAILABLE when no snapshot
+            # exists and none can be built) — keep the approved code.
+            new_state = state.with_error_response(
+                error=exc.user_message,
+                category=ErrorCategory.SCHEMA,
+                code=exc.code,
+                stage=state.pipeline_stage,
+                retryable=False,
             )
         else:  # ValueError etc.
             new_state = state.with_error_response(

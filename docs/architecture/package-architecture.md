@@ -21,6 +21,9 @@
 | `src/agents/text_to_sql_agent.py` | Interface/composition root | Public façade; constructs infra; preserved API |
 | `src/core/security/sql_security.py` | **Security domain (pure)** | `sqlglot` only. Authoritative security core |
 | `src/core/database/connection.py` | DB adapter (infrastructure) | `pymssql` at top; also defines `ExecutionPolicy`/`DatabaseError`/`DatabaseErrorCode` (VOs) — see §3, F2 |
+| `src/core/database/policy.py` | Execution policy VOs (pure) | Driver-free leaf (ADR-016, Sprint 2/3B); canonical home of the three VOs |
+| `src/core/database/metadata.py` | **Schema metadata adapter (infrastructure, Sprint 3.1B)** | Second (lazy) approved `pymssql` import site; read-only introspection; driver-free typed output (ADR-017) |
+| `src/core/schema/catalog.py` | **Schema Intelligence catalog (infrastructure, Sprint 3.1B)** | `SchemaCatalog` per ADR-002/017; owns annotations/merge/fingerprint/cache/history; no driver, LLM, state imports (enforced) |
 | `src/core/database/models.py` | Data (schema constants) | `FULL_SCHEMA`; consumed by `prompts.py` |
 | `src/core/llm/base.py`, `client.py` | LLM boundary | `client.py` imports `requests` + `OpenAIClient` eagerly |
 | `src/core/llm/{openai,gemini,groq,ollama}_client.py` | Provider adapters | Each imports its SDK at module top (by design, behind LLM boundary) |
@@ -64,7 +67,7 @@ Import-direction checks performed:
 |---|---|---|---|
 | F1 | **Critical** | `src/agents/__init__.py` eagerly imports façade/Orchestrator/adapters → importing *any* `src.agents.*` module (incl. `contracts`, `state`) loads 29 `src.*` modules + **openai SDK** + **pymssql** + `requests` + `dotenv` + `pydantic` + `sqlite3` | Fresh-subprocess footprint probe (Prompt 3A); existing tests miss it because they check direct imports only |
 | F2 | **High** | `contracts.py` imports `ExecutionPolicy`/`DatabaseErrorCode` from `connection.py`, which imports `pymssql` at module top → the contract authority can never be driver-free | `src/agents/contracts.py:43-47`, `src/core/database/connection.py:18` |
-| F3 | **High** | Orchestrator chain transitively imports the openai SDK (`orchestrator → sql_extractor.extractor → llm.client → openai_client`) — spirit of the "no provider SDK above the LLM boundary" rule | footprint probe; direct-import test passes |
+| F3 | **High** | Orchestrator chain transitively imports the openai SDK (`orchestrator → sql_extractor.extractor → llm.client → openai_client`) — spirit of the "no provider SDK above the LLM boundary" rule | footprint probe; direct-import test passes — **RESOLVED in Sprint 3 / Prompt 3.0B**: the extractor imports no LLM module; the openai SDK loads only on provider construction (pinned by `tests/test_llm/test_import_purity.py` façade/Orchestrator probes) |
 | F4 | Medium | `sql_extractor/validator.py` defines a parallel `SQLValidator`/`SQLValidationError` over the Security Core, with a class-level mutable singleton | migration debt (ADR-014, `dependency-rules.md` §11) |
 | F5 | Medium | Name shadowing: `contracts.SyntaxError` and `contracts.MemoryError` shadow builtins inside the module namespace | cosmetic; no runtime defect found |
 | F6 | Low | `contracts.py` docstring references `tests/test_architecture/test_contracts_dependencies.py`, which does not exist (test lives in `test_dependencies.py`) | doc drift |
@@ -77,7 +80,8 @@ Import-direction checks performed:
 
 **No confirmed dependency cycles. No state leakage (API never touches
 AgentState). No DB/provider leakage outside the documented adapters —
-except through the F1/F2/F3 transitive-import doors.**
+except through the F1/F2 transitive-import doors (F3 closed in Sprint 3;
+see the findings table above).**
 
 ## 4. Target Package Tree
 
@@ -98,10 +102,15 @@ src/
     database/
       policy.py                    # ExecutionPolicy/DatabaseError/DatabaseErrorCode  [3B: NEW, pure]
       connection.py                # pymssql adapter (re-exports policy VOs)          [3B: re-export]
-      models.py                    # schema data
+      metadata.py                  # schema metadata adapter (lazy pymssql)           [3.1B: NEW, ADR-017]
+      models.py                    # schema data (legacy, deprecated — see ADR-017)
     llm/                           # LLM boundary (client.py) + provider adapters
+    schema/
+      catalog.py                   # SchemaCatalog (annotations/fingerprint/cache)    [3.1B: NEW, ADR-017]
+      retriever.py                 # SchemaRetriever (bounded deterministic selection) [3.1C: NEW, hardened 3.2, ADR-017]
+      renderer.py                  # SchemaContextRenderer (bounded LLM-facing render)  [3.2: NEW, dormant]
     sql_extractor/                 # legacy generation component (untouched in 3B)
-    prompts.py, column_mapper.py, column_mapper_updater.py, schema_hash.py
+    prompts.py, column_mapper.py, column_mapper_updater.py, schema_hash.py  # legacy schema surfaces (deprecated, untouched)
   memory/manager.py                # memory adapter
   api/                             # FastAPI interface
   web/                             # Streamlit interface
